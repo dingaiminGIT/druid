@@ -26,10 +26,9 @@ import com.alibaba.druid.sql.ast.SQLCommentHint;
 import com.alibaba.druid.sql.ast.SQLExpr;
 import com.alibaba.druid.sql.ast.SQLName;
 import com.alibaba.druid.sql.ast.SQLObject;
-import com.alibaba.druid.sql.ast.SQLPartitionBy;
 import com.alibaba.druid.sql.ast.statement.*;
+import com.alibaba.druid.sql.dialect.mysql.ast.MySqlKey;
 import com.alibaba.druid.sql.dialect.mysql.ast.MySqlObjectImpl;
-import com.alibaba.druid.sql.dialect.mysql.ast.MySqlPrimaryKey;
 import com.alibaba.druid.sql.dialect.mysql.ast.MySqlUnique;
 import com.alibaba.druid.sql.dialect.mysql.visitor.MySqlASTVisitor;
 import com.alibaba.druid.sql.dialect.mysql.visitor.MySqlOutputVisitor;
@@ -41,13 +40,11 @@ public class MySqlCreateTableStatement extends SQLCreateTableStatement implement
 
     private Map<String, SQLObject> tableOptions = new LinkedHashMap<String, SQLObject>();
 
-    private SQLPartitionBy  partitioning;
-
     private List<SQLCommentHint>   hints        = new ArrayList<SQLCommentHint>();
 
     private List<SQLCommentHint>   optionHints  = new ArrayList<SQLCommentHint>();
 
-    private SQLExprTableSource     like;
+
     
     private SQLName                tableGroup;
 
@@ -55,20 +52,7 @@ public class MySqlCreateTableStatement extends SQLCreateTableStatement implement
         super (JdbcConstants.MYSQL);
     }
 
-    public SQLExprTableSource getLike() {
-        return like;
-    }
 
-    public void setLike(SQLName like) {
-        this.setLike(new SQLExprTableSource(like));
-    }
-
-    public void setLike(SQLExprTableSource like) {
-        if (like != null) {
-            like.setParent(this);
-        }
-        this.like = like;
-    }
 
     public List<SQLCommentHint> getHints() {
         return hints;
@@ -80,14 +64,6 @@ public class MySqlCreateTableStatement extends SQLCreateTableStatement implement
 
     public void setTableOptions(Map<String, SQLObject> tableOptions) {
         this.tableOptions = tableOptions;
-    }
-
-    public SQLPartitionBy getPartitioning() {
-        return partitioning;
-    }
-
-    public void setPartitioning(SQLPartitionBy partitioning) {
-        this.partitioning = partitioning;
     }
 
     public Map<String, SQLObject> getTableOptions() {
@@ -134,6 +110,9 @@ public class MySqlCreateTableStatement extends SQLCreateTableStatement implement
         }
 
         public void setName(SQLName name) {
+            if (name != null) {
+                name.setParent(this);
+            }
             this.name = name;
         }
 
@@ -142,6 +121,9 @@ public class MySqlCreateTableStatement extends SQLCreateTableStatement implement
         }
 
         public void setStorage(SQLExpr storage) {
+            if (storage != null) {
+                storage.setParent(this);
+            }
             this.storage = storage;
         }
 
@@ -152,6 +134,20 @@ public class MySqlCreateTableStatement extends SQLCreateTableStatement implement
                 acceptChild(visitor, getStorage());
             }
             visitor.endVisit(this);
+        }
+
+        public TableSpaceOption clone() {
+            TableSpaceOption x = new TableSpaceOption();
+
+            if (name != null) {
+                x.setName(name.clone());
+            }
+
+            if (storage != null) {
+                x.setStorage(storage.clone());
+            }
+
+            return x;
         }
 
     }
@@ -200,8 +196,8 @@ public class MySqlCreateTableStatement extends SQLCreateTableStatement implement
         } else if (item instanceof MySqlAlterTableChangeColumn) {
             return apply((MySqlAlterTableChangeColumn) item);
 
-        } else if (item instanceof MySqlAlterTableCharacter) {
-            return apply((MySqlAlterTableCharacter) item);
+        } else if (item instanceof SQLAlterCharacter) {
+            return apply((SQLAlterCharacter) item);
 
         } else if (item instanceof MySqlAlterTableModifyColumn) {
             return apply((MySqlAlterTableModifyColumn) item);
@@ -214,15 +210,16 @@ public class MySqlCreateTableStatement extends SQLCreateTableStatement implement
     }
 
     public boolean apply(SQLAlterTableAddIndex item) {
-        if (item.isKey()) {
-            MySqlPrimaryKey x = new MySqlPrimaryKey();
+        if (item.isUnique()) {
+            MySqlUnique x = new MySqlUnique();
             item.cloneTo(x);
             x.setParent(this);
             this.tableElementList.add(x);
             return true;
         }
-        if (item.isUnique()) {
-            MySqlUnique x = new MySqlUnique();
+
+        if (item.isKey()) {
+            MySqlKey x = new MySqlKey();
             item.cloneTo(x);
             x.setParent(this);
             this.tableElementList.add(x);
@@ -241,7 +238,7 @@ public class MySqlCreateTableStatement extends SQLCreateTableStatement implement
         return true;
     }
 
-    public boolean apply(MySqlAlterTableCharacter item) {
+    public boolean apply(SQLAlterCharacter item) {
         SQLExpr charset = item.getCharacterSet();
         if (charset != null) {
             this.tableOptions.put("CHARACTER SET", charset);
@@ -295,13 +292,14 @@ public class MySqlCreateTableStatement extends SQLCreateTableStatement implement
             insertIndex = beforeIndex;
         } else if (afterIndex != -1) {
             insertIndex = afterIndex + 1;
+        } else if (item.isFirst()) {
+            insertIndex = 0;
         }
 
         SQLColumnDefinition column = item.getNewColumnDefinition().clone();
         column.setParent(this);
         if (insertIndex == -1 || insertIndex == columnIndex) {
             tableElementList.set(columnIndex, column);
-            return true;
         } else {
             if (insertIndex > columnIndex) {
                 tableElementList.add(insertIndex, column);
@@ -309,6 +307,16 @@ public class MySqlCreateTableStatement extends SQLCreateTableStatement implement
             } else {
                 tableElementList.remove(columnIndex);
                 tableElementList.add(insertIndex, column);
+            }
+        }
+
+        for (int i = 0; i < tableElementList.size(); i++) {
+            SQLTableElement e = tableElementList.get(i);
+            if(e instanceof MySqlTableIndex) {
+                ((MySqlTableIndex) e).applyColumnRename(columnName, column.getName());
+            } else if (e instanceof SQLUnique) {
+                SQLUnique unique = (SQLUnique) e;
+                unique.applyColumnRename(columnName, column.getName());
             }
         }
 

@@ -17,52 +17,72 @@ package com.alibaba.druid.sql.ast.expr;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import com.alibaba.druid.sql.SQLUtils;
-import com.alibaba.druid.sql.ast.SQLExpr;
-import com.alibaba.druid.sql.ast.SQLExprImpl;
-import com.alibaba.druid.sql.ast.SQLReplaceable;
+import com.alibaba.druid.sql.ast.*;
 import com.alibaba.druid.sql.dialect.oracle.visitor.OracleASTVisitor;
 import com.alibaba.druid.sql.visitor.SQLASTVisitor;
+import com.alibaba.druid.util.FnvHash;
 
 public class SQLMethodInvokeExpr extends SQLExprImpl implements SQLReplaceable, Serializable {
 
     private static final long   serialVersionUID = 1L;
-    private String              methodName;
+    private String              name;
     private SQLExpr             owner;
     private final List<SQLExpr> parameters       = new ArrayList<SQLExpr>();
 
     private SQLExpr             from;
+    private SQLExpr             using;
+    private SQLExpr             _for;
+
+    private String              trimOption;
+
+    private long                nameHashCode64;
 
     public SQLMethodInvokeExpr(){
 
     }
 
     public SQLMethodInvokeExpr(String methodName){
-        this.methodName = methodName;
+        this.name = methodName;
+    }
+
+    public SQLMethodInvokeExpr(String methodName, long nameHashCode64){
+        this.name = methodName;
+        this.nameHashCode64 = nameHashCode64;
     }
 
     public SQLMethodInvokeExpr(String methodName, SQLExpr owner){
 
-        this.methodName = methodName;
+        this.name = methodName;
         setOwner(owner);
     }
 
     public SQLMethodInvokeExpr(String methodName, SQLExpr owner, SQLExpr... params){
-        this.methodName = methodName;
+        this.name = methodName;
         setOwner(owner);
         for (SQLExpr param : params) {
             this.addParameter(param);
         }
     }
 
+    public long methodNameHashCode64() {
+        if (nameHashCode64 == 0
+                && name != null) {
+            nameHashCode64 = FnvHash.hashCode64(name);
+        }
+        return nameHashCode64;
+    }
+
     public String getMethodName() {
-        return this.methodName;
+        return this.name;
     }
 
     public void setMethodName(String methodName) {
-        this.methodName = methodName;
+        this.name = methodName;
+        this.nameHashCode64 = 0L;
     }
 
     public SQLExpr getOwner() {
@@ -101,7 +121,7 @@ public class SQLMethodInvokeExpr extends SQLExprImpl implements SQLReplaceable, 
             buf.append(".");
         }
 
-        buf.append(this.methodName);
+        buf.append(this.name);
         buf.append("(");
         for (int i = 0, size = this.parameters.size(); i < size; ++i) {
             if (i != 0) {
@@ -123,6 +143,17 @@ public class SQLMethodInvokeExpr extends SQLExprImpl implements SQLReplaceable, 
         visitor.endVisit(this);
     }
 
+    public List getChildren() {
+        if (this.owner == null) {
+            return this.parameters;
+        }
+
+        List<SQLObject> children = new ArrayList<SQLObject>();
+        children.add(owner);
+        children.addAll(this.parameters);
+        return children;
+    }
+
     protected void accept0(OracleASTVisitor visitor) {
         if (visitor.visit(this)) {
             acceptChild(visitor, this.owner);
@@ -139,7 +170,7 @@ public class SQLMethodInvokeExpr extends SQLExprImpl implements SQLReplaceable, 
 
         SQLMethodInvokeExpr that = (SQLMethodInvokeExpr) o;
 
-        if (methodName != null ? !methodName.equals(that.methodName) : that.methodName != null) return false;
+        if (name != null ? !name.equals(that.name) : that.name != null) return false;
         if (owner != null ? !owner.equals(that.owner) : that.owner != null) return false;
         if (parameters != null ? !parameters.equals(that.parameters) : that.parameters != null) return false;
         return from != null ? from.equals(that.from) : that.from == null;
@@ -148,7 +179,7 @@ public class SQLMethodInvokeExpr extends SQLExprImpl implements SQLReplaceable, 
 
     @Override
     public int hashCode() {
-        int result = methodName != null ? methodName.hashCode() : 0;
+        int result = name != null ? name.hashCode() : 0;
         result = 31 * result + (owner != null ? owner.hashCode() : 0);
         result = 31 * result + (parameters != null ? parameters.hashCode() : 0);
         result = 31 * result + (from != null ? from.hashCode() : 0);
@@ -158,7 +189,7 @@ public class SQLMethodInvokeExpr extends SQLExprImpl implements SQLReplaceable, 
     public SQLMethodInvokeExpr clone() {
         SQLMethodInvokeExpr x = new SQLMethodInvokeExpr();
 
-        x.methodName = methodName;
+        x.name = name;
 
         if (owner != null) {
             x.setOwner(owner.clone());
@@ -172,11 +203,18 @@ public class SQLMethodInvokeExpr extends SQLExprImpl implements SQLReplaceable, 
             x.setFrom(from.clone());
         }
 
+        if (using != null) {
+            x.setUsing(using.clone());
+        }
+
         return x;
     }
 
     @Override
     public boolean replace(SQLExpr expr, SQLExpr target) {
+        if (target == null) {
+            return false;
+        }
         for (int i = 0; i < parameters.size(); ++i) {
             if (parameters.get(i) == expr) {
                 parameters.set(i, target);
@@ -192,7 +230,7 @@ public class SQLMethodInvokeExpr extends SQLExprImpl implements SQLReplaceable, 
             return false;
         }
 
-        if (!SQLUtils.nameEquals(function, methodName)) {
+        if (!SQLUtils.nameEquals(function, name)) {
             return false;
         }
 
@@ -209,5 +247,60 @@ public class SQLMethodInvokeExpr extends SQLExprImpl implements SQLReplaceable, 
         }
 
         return false;
+    }
+
+    public SQLDataType computeDataType() {
+        if (SQLUtils.nameEquals("to_date", name)
+                || SQLUtils.nameEquals("add_months", name)) {
+            return SQLDateExpr.DEFAULT_DATA_TYPE;
+        }
+
+        if (parameters.size() == 1) {
+            if (SQLUtils.nameEquals("trunc", name)) {
+                return parameters.get(0).computeDataType();
+            }
+        } else if (parameters.size() == 2) {
+            SQLExpr param0 = parameters.get(0);
+            SQLExpr param1 = parameters.get(1);
+            if (SQLUtils.nameEquals("nvl", name) || SQLUtils.nameEquals("ifnull", name)) {
+                SQLDataType dataType = param0.computeDataType();
+                if (dataType != null) {
+                    return dataType;
+                }
+
+                return param1.computeDataType();
+            }
+        }
+        return null;
+    }
+
+    public SQLExpr getUsing() {
+        return using;
+    }
+
+    public void setUsing(SQLExpr using) {
+        if (using != null) {
+            using.setParent(this);
+        }
+        this.using = using;
+    }
+
+    public SQLExpr getFor() {
+        return _for;
+    }
+
+    public void setFor(SQLExpr x) {
+        if (x != null) {
+            x.setParent(this);
+        }
+        this._for = x;
+    }
+
+    public String getTrimOption() {
+        return trimOption;
+    }
+
+    public void setTrimOption(String trimOption) {
+        this.trimOption = trimOption;
     }
 }

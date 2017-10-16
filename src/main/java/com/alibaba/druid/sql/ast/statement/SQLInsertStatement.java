@@ -18,13 +18,18 @@ package com.alibaba.druid.sql.ast.statement;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.alibaba.druid.sql.SQLUtils;
 import com.alibaba.druid.sql.ast.SQLExpr;
+import com.alibaba.druid.sql.ast.SQLObject;
 import com.alibaba.druid.sql.ast.SQLObjectImpl;
 import com.alibaba.druid.sql.ast.SQLStatement;
 import com.alibaba.druid.sql.visitor.SQLASTVisitor;
+import oracle.sql.SQLUtil;
 
 public class SQLInsertStatement extends SQLInsertInto implements SQLStatement {
-    private String dbType;
+    protected SQLWithSubqueryClause with;
+
+    protected String dbType;
 
     protected boolean upsert = false; // for phoenix
 
@@ -32,6 +37,23 @@ public class SQLInsertStatement extends SQLInsertInto implements SQLStatement {
 
     public SQLInsertStatement(){
 
+    }
+
+    public void cloneTo(SQLInsertStatement x) {
+        super.cloneTo(x);
+        x.dbType = dbType;
+        x.upsert = upsert;
+        x.afterSemi = afterSemi;
+
+        if (with != null) {
+            x.setWith(with.clone());
+        }
+    }
+
+    public SQLInsertStatement clone() {
+        SQLInsertStatement x = new SQLInsertStatement();
+        cloneTo(x);
+        return x;
     }
 
     @Override
@@ -46,6 +68,20 @@ public class SQLInsertStatement extends SQLInsertInto implements SQLStatement {
         visitor.endVisit(this);
     }
 
+    @Override
+    public List<SQLObject> getChildren() {
+        List<SQLObject> children = new ArrayList<SQLObject>();
+
+        children.add(tableSource);
+        children.addAll(this.columns);
+        children.addAll(this.valuesList);
+        if (query != null) {
+            children.add(query);
+        }
+
+        return children;
+    }
+
     public boolean isUpsert() {
         return upsert;
     }
@@ -58,8 +94,18 @@ public class SQLInsertStatement extends SQLInsertInto implements SQLStatement {
 
         private final List<SQLExpr> values;
 
+        private transient String originalString;
+
         public ValuesClause(){
             this(new ArrayList<SQLExpr>());
+        }
+
+        public ValuesClause clone() {
+            ValuesClause x = new ValuesClause(new ArrayList<SQLExpr>(this.values.size()));
+            for (SQLExpr v : values) {
+                x.addValue(v);
+            }
+            return x;
         }
 
         public ValuesClause(List<SQLExpr> values){
@@ -97,6 +143,14 @@ public class SQLInsertStatement extends SQLInsertInto implements SQLStatement {
 
             visitor.endVisit(this);
         }
+
+        public String getOriginalString() {
+            return originalString;
+        }
+
+        public void setOriginalString(String originalString) {
+            this.originalString = originalString;
+        }
     }
 
     @Override
@@ -116,5 +170,21 @@ public class SQLInsertStatement extends SQLInsertInto implements SQLStatement {
     @Override
     public void setAfterSemi(boolean afterSemi) {
         this.afterSemi = afterSemi;
+    }
+
+
+    public SQLWithSubqueryClause getWith() {
+        return with;
+    }
+
+    public void setWith(SQLWithSubqueryClause with) {
+        if (with != null) {
+            with.setParent(this);
+        }
+        this.with = with;
+    }
+
+    public String toString() {
+        return SQLUtils.toSQLString(this, dbType);
     }
 }

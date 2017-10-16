@@ -24,8 +24,10 @@ import com.alibaba.druid.sql.ast.statement.SQLMergeStatement.MergeUpdateClause;
 import com.alibaba.druid.sql.ast.statement.SQLWhileStatement;
 import com.alibaba.druid.sql.ast.statement.SQLDeclareStatement;
 import com.alibaba.druid.sql.ast.statement.SQLCommitStatement;
+import com.alibaba.druid.sql.parser.SQLParserFeature;
 
 public class SQLASTVisitorAdapter implements SQLASTVisitor {
+    protected int features;
 
     public void endVisit(SQLAllColumnExpr x) {
     }
@@ -311,6 +313,13 @@ public class SQLASTVisitorAdapter implements SQLASTVisitor {
     }
 
     public void endVisit(SQLCreateViewStatement x) {
+    }
+
+    public boolean visit(SQLAlterViewStatement x) {
+        return true;
+    }
+
+    public void endVisit(SQLAlterViewStatement x) {
     }
 
     public boolean visit(SQLCreateViewStatement.Column x) {
@@ -1671,5 +1680,171 @@ public class SQLASTVisitorAdapter implements SQLASTVisitor {
     @Override
     public void endVisit(SQLCreateMaterializedViewStatement x) {
 
+    }
+
+    @Override
+    public boolean visit(SQLBinaryOpExprGroup x) {
+        return true;
+    }
+
+    @Override
+    public void endVisit(SQLBinaryOpExprGroup x) {
+
+    }
+
+    public void config(VisitorFeature feature, boolean state) {
+        features = VisitorFeature.config(features, feature, state);
+    }
+
+    @Override
+    public boolean visit(SQLScriptCommitStatement x) {
+        return true;
+    }
+
+    @Override
+    public void endVisit(SQLScriptCommitStatement x) {
+
+    }
+
+    @Override
+    public boolean visit(SQLReplaceStatement x) {
+        return true;
+    }
+
+    @Override
+    public void endVisit(SQLReplaceStatement x) {
+
+    }
+
+    @Override
+    public boolean visit(SQLCreateUserStatement x) {
+        return true;
+    }
+
+    @Override
+    public void endVisit(SQLCreateUserStatement x) {
+
+    }
+
+    @Override
+    public boolean visit(SQLAlterFunctionStatement x) {
+        return true;
+    }
+
+    @Override
+    public void endVisit(SQLAlterFunctionStatement x) {
+
+    }
+
+    @Override
+    public boolean visit(SQLAlterTypeStatement x) {
+        return true;
+    }
+
+    @Override
+    public void endVisit(SQLAlterTypeStatement x) {
+
+    }
+
+    @Override
+    public boolean visit(SQLIntervalExpr x) {
+        return true;
+    }
+
+    @Override
+    public void endVisit(SQLIntervalExpr x) {
+
+    }
+
+    @Override
+    public boolean visit(SQLLateralViewTableSource x) {
+        return true;
+    }
+
+    @Override
+    public void endVisit(SQLLateralViewTableSource x) {
+
+    }
+
+    @Override
+    public boolean visit(SQLShowErrorsStatement x) {
+        return true;
+    }
+
+    @Override
+    public void endVisit(SQLShowErrorsStatement x) {
+
+    }
+
+    @Override
+    public boolean visit(SQLAlterCharacter x) {
+        return true;
+    }
+
+    @Override
+    public void endVisit(SQLAlterCharacter x) {
+
+    }
+
+    @Override
+    public boolean visit(SQLExprStatement x) {
+        return true;
+    }
+
+    @Override
+    public void endVisit(SQLExprStatement x) {
+
+    }
+
+    @Override
+    public boolean visit(SQLAlterProcedureStatement x) {
+        return true;
+    }
+
+    @Override
+    public void endVisit(SQLAlterProcedureStatement x) {
+
+    }
+
+    @Override
+    public boolean visit(SQLDropEventStatement x) {
+        return true;
+    }
+
+    @Override
+    public void endVisit(SQLDropEventStatement x) {
+
+    }
+
+    @Override
+    public boolean visit(SQLDropLogFileGroupStatement x) {
+        return true;
+    }
+
+    @Override
+    public void endVisit(SQLDropLogFileGroupStatement x) {
+
+    }
+
+    @Override
+    public boolean visit(SQLDropServerStatement x) {
+        return true;
+    }
+
+    @Override
+    public void endVisit(SQLDropServerStatement x) {
+
+    }
+
+    public final boolean isEnabled(VisitorFeature feature) {
+        return VisitorFeature.isEnabled(this.features, feature);
+    }
+
+    public int getFeatures() {
+        return features;
+    }
+
+    public void setFeatures(int features) {
+        this.features = features;
     }
 }

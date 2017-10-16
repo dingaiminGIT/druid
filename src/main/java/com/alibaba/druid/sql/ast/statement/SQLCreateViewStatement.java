@@ -19,17 +19,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.alibaba.druid.sql.SQLUtils;
-import com.alibaba.druid.sql.ast.SQLExpr;
-import com.alibaba.druid.sql.ast.SQLName;
-import com.alibaba.druid.sql.ast.SQLObjectImpl;
-import com.alibaba.druid.sql.ast.SQLStatementImpl;
+import com.alibaba.druid.sql.ast.*;
 import com.alibaba.druid.sql.ast.expr.SQLCharExpr;
 import com.alibaba.druid.sql.ast.expr.SQLIdentifierExpr;
 import com.alibaba.druid.sql.ast.expr.SQLLiteralExpr;
 import com.alibaba.druid.sql.ast.expr.SQLPropertyExpr;
 import com.alibaba.druid.sql.visitor.SQLASTVisitor;
 
-public class SQLCreateViewStatement extends SQLStatementImpl implements SQLDDLStatement {
+public class SQLCreateViewStatement extends SQLStatementImpl implements SQLCreateStatement {
 
     private boolean     orReplace   = false;
     private boolean     force       = false;
@@ -241,6 +238,21 @@ public class SQLCreateViewStatement extends SQLStatementImpl implements SQLDDLSt
         visitor.endVisit(this);
     }
 
+    public List<SQLObject> getChildren() {
+        List<SQLObject> children = new ArrayList<SQLObject>();
+        if (tableSource != null) {
+            children.add(tableSource);
+        }
+        children.addAll(this.columns);
+        if (comment != null) {
+            children.add(comment);
+        }
+        if (subQuery != null) {
+            children.add(subQuery);
+        }
+        return children;
+    }
+
     public static enum Level {
                               CASCADED, LOCAL
     }
@@ -279,5 +291,41 @@ public class SQLCreateViewStatement extends SQLStatementImpl implements SQLDDLSt
                 acceptChild(visitor, comment);
             }
         }
+    }
+
+
+    public SQLCreateViewStatement clone() {
+        SQLCreateViewStatement x = new SQLCreateViewStatement();
+
+        x.orReplace = orReplace;
+        x.force = force;
+        if (subQuery != null) {
+            x.setSubQuery(subQuery.clone());
+        }
+        x.ifNotExists = ifNotExists;
+
+        x.algorithm = algorithm;
+        if (definer != null) {
+            x.setDefiner(definer.clone());
+        }
+        x.sqlSecurity = sqlSecurity;
+        if (tableSource != null) {
+            x.setTableSource(tableSource.clone());
+        }
+        for (SQLTableElement column : columns) {
+            SQLTableElement column2 = column.clone();
+            column2.setParent(x);
+            x.columns.add(column2);
+        }
+        x.withCheckOption = withCheckOption;
+        x.withCascaded = withCascaded;
+        x.withLocal = withLocal;
+        x.withReadOnly = withReadOnly;
+
+        if (comment != null) {
+            x.setComment(comment.clone());
+        }
+
+        return x;
     }
 }

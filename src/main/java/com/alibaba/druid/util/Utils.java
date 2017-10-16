@@ -24,8 +24,6 @@ import java.util.Date;
 import java.util.Properties;
 import java.util.Set;
 
-import javax.servlet.GenericServlet;
-
 public class Utils {
 
     public final static int DEFAULT_BUFFER_SIZE = 1024 * 4;
@@ -200,7 +198,7 @@ public class Utils {
         if (className == null) {
             return null;
         }
-        
+
         try {
             return Class.forName(className);
         } catch (ClassNotFoundException e) {
@@ -236,7 +234,7 @@ public class Utils {
     /**
      * murmur hash 2.0, The murmur hash is a relatively fast hash function from http://murmurhash.googlepages.com/ for
      * platforms with efficient multiplication.
-     * 
+     *
      * @author Viliam Holub
      */
     public static long murmurhash2_64(final byte[] data, int length, int seed) {
@@ -250,13 +248,13 @@ public class Utils {
         for (int i = 0; i < length8; i++) {
             final int i8 = i * 8;
             long k = ((long) data[i8 + 0] & 0xff) //
-                     + (((long) data[i8 + 1] & 0xff) << 8) //
-                     + (((long) data[i8 + 2] & 0xff) << 16)//
-                     + (((long) data[i8 + 3] & 0xff) << 24) //
-                     + (((long) data[i8 + 4] & 0xff) << 32)//
-                     + (((long) data[i8 + 5] & 0xff) << 40)//
-                     + (((long) data[i8 + 6] & 0xff) << 48) //
-                     + (((long) data[i8 + 7] & 0xff) << 56);
+                    + (((long) data[i8 + 1] & 0xff) << 8) //
+                    + (((long) data[i8 + 2] & 0xff) << 16)//
+                    + (((long) data[i8 + 3] & 0xff) << 24) //
+                    + (((long) data[i8 + 4] & 0xff) << 32)//
+                    + (((long) data[i8 + 5] & 0xff) << 40)//
+                    + (((long) data[i8 + 6] & 0xff) << 48) //
+                    + (((long) data[i8 + 7] & 0xff) << 56);
 
             k *= m;
             k ^= k >>> r;
@@ -409,56 +407,15 @@ public class Utils {
     }
 
     public static long fnv_64(String input) {
-        if (input == null) {
-            return 0;
-        }
-
-        long hash = 0xcbf29ce484222325L;
-        for (int i = 0; i < input.length(); ++i) {
-            char c = input.charAt(i);
-            hash ^= c;
-            hash *= 0x100000001b3L;
-        }
-
-        return hash;
+        return FnvHash.fnv1a_64(input);
     }
 
     public static long fnv_64_lower(String key) {
-        long hashCode = 0xcbf29ce484222325L;
-        for (int i = 0; i < key.length(); ++i) {
-            char ch = key.charAt(i);
-            if (ch == '_' || ch == '-') {
-                continue;
-            }
-
-            if (ch >= 'A' && ch <= 'Z') {
-                ch = (char) (ch + 32);
-            }
-
-            hashCode ^= ch;
-            hashCode *= 0x100000001b3L;
-        }
-
-        return hashCode;
+        return FnvHash.fnv1a_64_lower(key);
     }
 
     public static long fnv_32_lower(String key) {
-        long hashCode = 0x811c9dc5;
-        for (int i = 0; i < key.length(); ++i) {
-            char ch = key.charAt(i);
-            if (ch == '_' || ch == '-') {
-                continue;
-            }
-
-            if (ch >= 'A' && ch <= 'Z') {
-                ch = (char) (ch + 32);
-            }
-
-            hashCode ^= ch;
-            hashCode *= 0x01000193;
-        }
-
-        return hashCode;
+        return FnvHash.fnv_32_lower(key);
     }
 
     public static void loadFromFile(String path, Set<String> set) {
@@ -487,4 +444,5 @@ public class Utils {
             JdbcUtils.close(reader);
         }
     }
+
 }

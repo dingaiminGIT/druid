@@ -18,9 +18,11 @@ package com.alibaba.druid.sql.dialect.mysql.visitor.transform;
 import com.alibaba.druid.sql.SQLUtils;
 import com.alibaba.druid.sql.ast.SQLName;
 import com.alibaba.druid.sql.ast.SQLObject;
+import com.alibaba.druid.sql.ast.SQLStatement;
 import com.alibaba.druid.sql.ast.expr.*;
 import com.alibaba.druid.sql.ast.statement.*;
 import com.alibaba.druid.sql.dialect.oracle.visitor.OracleASTVisitorAdapter;
+import com.alibaba.druid.util.FnvHash;
 
 /**
  * Created by wenshao on 26/07/2017.
@@ -28,9 +30,29 @@ import com.alibaba.druid.sql.dialect.oracle.visitor.OracleASTVisitorAdapter;
 public class NameResolveVisitor extends OracleASTVisitorAdapter {
     public boolean visit(SQLIdentifierExpr x) {
         SQLObject parent = x.getParent();
+
+        if (parent instanceof SQLBinaryOpExpr
+                && x.getResolvedColumn() == null) {
+            SQLBinaryOpExpr binaryOpExpr = (SQLBinaryOpExpr) parent;
+            boolean isJoinCondition = binaryOpExpr.getLeft() instanceof SQLName
+                    && binaryOpExpr.getRight() instanceof SQLName;
+            if (isJoinCondition) {
+                return false;
+            }
+        }
+
         String name = x.getName();
 
         if ("ROWNUM".equalsIgnoreCase(name)) {
+            return false;
+        }
+
+        long hash = x.nameHashCode64();
+        SQLTableSource tableSource = null;
+
+        if (hash == FnvHash.Constants.LEVEL
+                || hash == FnvHash.Constants.CONNECT_BY_ISCYCLE
+                || hash == FnvHash.Constants.SYSTIMESTAMP) {
             return false;
         }
 
@@ -68,5 +90,33 @@ public class NameResolveVisitor extends OracleASTVisitorAdapter {
             }
         }
         return true;
+    }
+
+    public boolean visit(SQLPropertyExpr x) {
+        String ownerName = x.getOwnernName();
+        if (ownerName == null) {
+            return super.visit(x);
+        }
+
+        for (SQLObject parent = x.getParent(); parent != null; parent = parent.getParent()) {
+            if (parent instanceof SQLSelectQueryBlock) {
+                SQLSelectQueryBlock queryBlock = (SQLSelectQueryBlock) parent;
+                SQLTableSource tableSource = queryBlock.findTableSource(ownerName);
+                if (tableSource == null) {
+                    continue;
+                }
+
+                String alias = tableSource.computeAlias();
+                if (tableSource != null
+                        && ownerName.equalsIgnoreCase(alias)
+                        && !ownerName.equals(alias)) {
+                    x.setOwner(alias);
+                }
+
+                break;
+            }
+        }
+
+        return super.visit(x);
     }
 }
